@@ -209,7 +209,7 @@ weather_bootstrap %>%
   geom_density()
 ```
 
-
+Both of these two graphs follow approximately normal distribution.
 
 
 
