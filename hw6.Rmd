@@ -9,6 +9,7 @@ output: github_document
 library(tidyverse)
 library(readxl)
 library(patchwork)
+library(modelr)
 knitr::opts_chunk$set(
   fig.height = 6,
   fig.width = 8,
@@ -83,23 +84,87 @@ Clean data
 weight_df =
   read_csv("data/birthweight.csv") %>%
   janitor::clean_names() %>%
+  select(babysex, bhead, blength, bwt, gaweeks,malform) %>% 
+  drop_na() %>% 
+  relocate(bwt, everything()) %>% 
   mutate(
-    across(
-      c("frace", "mrace"),
-      ~ case_when(
-        .x == 1 ~ "White",
-        .x == 2 ~ "Black",
-        .x == 3 ~ "Asian",
-        .x == 4 ~ "Puero Rican",
-        .x == 8 ~ "Other",
-        .x == 9 ~ "Unknown"
-      )),
     babysex = case_when(babysex == 1 ~ "male",
-                        babysex == 2 ~ "female") %>% as.factor(),
+                        babysex == 2 ~ "female") %>% 
+      as.factor(),
     malform = as.factor(malform)
   )
 weight_df
 ```
+Regression Model
+```{r}
+model = lm(bwt ~ gaweeks, data = weight_df)
+model
+```
+Show a plot of model residuals against fitted values 
+```{r}
+resid_plot =
+weight_df %>% 
+  add_residuals(model) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) + 
+  geom_violin()
+pred_plot =
+weight_df %>% 
+  add_predictions(model) %>% 
+  ggplot(aes(x = gaweeks, y = pred)) + 
+  geom_point()
+resid_plot
+pred_plot
+```
+
+Compare your model to two others:
+
+One using length at birth and gestational age as predictors (main effects only)
+One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+
+```{r}
+model_compare1 = lm(bwt ~ blength + gaweeks, data = weight_df)
+model_compare2 = lm(bwt ~ bhead*blength*babysex, data = weight_df)
+```
+
+```{r}
+compare_df =
+  crossv_mc(weight_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)) %>% 
+  mutate(
+    model   = map(.x = train, ~lm(bwt ~ gaweeks, data = .x)),
+    model_compare1  = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    model_compare2 = map(.x = train, ~lm(bwt ~ bhead*blength*babysex, data = as_tibble(.x)))) %>% 
+  mutate(
+    rmse_0 = map2_dbl(.x = model, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_1    = map2_dbl(.x = model_compare1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_2 = map2_dbl(.x = model_compare2, .y = test, ~rmse(model = .x, data = .y)))
+compare_df %>% 
+  select(.id,rmse_0,rmse_1,rmse_2)
+```
+```{r}
+compare_df %>% 
+  dplyr::select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model))
+```
+
+# Problem 3
+```{r}
+
+```
+
+
+
+
+
+
+
 
 
 
