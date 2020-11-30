@@ -76,3 +76,31 @@ homicide_df %>%
   head() %>%
   knitr::kable()
 ```
+
+# Problem 2
+Clean data
+```{r}
+weight_df =
+  read_csv("data/birthweight.csv") %>%
+  janitor::clean_names() %>%
+  mutate(
+    across(
+      c("frace", "mrace"),
+      ~ case_when(
+        .x == 1 ~ "White",
+        .x == 2 ~ "Black",
+        .x == 3 ~ "Asian",
+        .x == 4 ~ "Puero Rican",
+        .x == 8 ~ "Other",
+        .x == 9 ~ "Unknown"
+      )),
+    babysex = case_when(babysex == 1 ~ "male",
+                        babysex == 2 ~ "female") %>% as.factor(),
+    malform = as.factor(malform)
+  )
+weight_df
+```
+
+
+
+
