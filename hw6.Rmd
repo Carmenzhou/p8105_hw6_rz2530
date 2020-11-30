@@ -159,10 +159,55 @@ compare_df %>%
 
 
 # Problem 3
+data
 ```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+weather_df
+```
+```{r}
+set.seed(1)
+weather_bootstrap =
+  bootstrap(weather_df, n = 5000, id = "strap_number") %>%
+  mutate(strap = map(strap, as_tibble),
+    md = map(.x = strap, ~ lm(tmax ~ tmin, data = .x)),
+    r_square = map2_dbl(.x = md, .y = strap, ~ modelr::rsquare(.x, .y)),
+    md = map(md, broom::tidy)) %>%
+  unnest(md) %>%
+  select(strap_number, term, estimate, std_error = std.error, r_square)
 
+weather_bootstrap %>% head() %>% knitr::kable()
 ```
 
+Plot r square
+```{r}
+weather_bootstrap %>%
+  distinct(strap_number, r_square) %>%
+  ggplot(aes(x = r_square)) +
+  geom_density()
+```
+
+Plot log(beta0 * beta1)
+```{r}
+weather_bootstrap %>%
+  select(strap_number, term, estimate) %>%
+  pivot_wider(names_from = term,
+              values_from = estimate) %>%
+  janitor::clean_names() %>%
+  mutate(log_beta =
+           log(tmin * intercept)) %>%
+  ggplot(aes(x = log_beta)) +
+  geom_density()
+```
 
 
 
