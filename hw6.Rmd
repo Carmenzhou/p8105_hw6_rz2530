@@ -1,0 +1,78 @@
+---
+title: "HW6"
+author: "Ruwen Zhou"
+date: "11/30/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(patchwork)
+knitr::opts_chunk$set(
+  fig.height = 6,
+  fig.width = 8,
+  message = F,
+  echo = T,
+  warning = F
+)
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis",
+  digits = 3
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+# Problem 1
+
+Read in the data.
+```{r}
+homicide_df =
+  read_csv("data/data-homicides-master/homicide-data.csv") %>%
+  mutate(
+    city_state = str_c(city, state, sep = "_"),
+    resolved = case_when(
+      disposition == "Closed without arrest" ~ "unsolved",
+      disposition == "Open/No arrest"        ~ "unsolved",
+      disposition == "Closed by arrest"      ~ "solved"
+    ),
+    resolved = forcats::fct_relevel(resolved, "unsolved"),
+    victim_age = as.numeric(victim_age),
+    victim_sex = as.factor(victim_sex)
+  ) %>%
+  select(-city,-state,-victim_last,-victim_first,-lon,-lat) %>%
+  filter(
+    !str_detect(city_state, "Tulsa|Dallas|Phoenix|Kansas"),
+    victim_race %in% c("White", "Black"),
+    victim_sex %in% c("Male", "Female")
+  ) %>%
+  nest(c(-city_state))
+```
+
+Do linear regression
+```{r}
+homicide_df =
+  homicide_df %>%
+  mutate(log = map(
+    .x = data,
+    ~ glm(
+      resolved ~ victim_age + victim_sex + victim_race,
+      data = .x,
+      family = binomial()
+    )
+  ),
+  result  = map(log, broom::tidy)) %>%
+  select(-data) %>%
+  unnest(result) %>%
+  mutate(ci = map2(.x = log,
+                   .y = term,
+                   ~ confint(.x, .y))) %>%
+  select(city_state, term, estimate, ci) %>%
+  filter(term == "victim_raceWhite")
+homicide_df %>%
+  head() %>%
+  knitr::kable()
+```
